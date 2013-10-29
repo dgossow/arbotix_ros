@@ -45,7 +45,7 @@ class ArbotiX:
     ##
     ## @param timeout The timeout to use for the port. When operating over a wireless link, you may need to
     ## increase this.
-    def __init__(self, port="/dev/ttyUSB0",baud=115200, timeout = 0.1):
+    def __init__(self, port="/dev/ttyUSB0",baud=115200, timeout = 1.0):
         self._mutex = thread.allocate_lock()
         self._ser = serial.Serial()
         
@@ -470,6 +470,10 @@ class ArbotiX:
             self.write(253, self.REG_DIGITAL_OUT0 + int(index), [2])
         else:
             self.write(253, self.REG_DIGITAL_OUT0 + int(index), [0])
+        return 0
+
+    def userWrite(self, addr, value):
+        self.write(253, addr, [value])
         return 0
 
     ## @brief Set the position of a hobby servo.

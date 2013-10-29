@@ -354,6 +354,7 @@ class ServoController(Controller):
         self.r_skip_count +=1
         """ Read servo positions, update them. """
         if self.r_skip_count > self.r_skip and not self.fake:
+            self.device.userWrite(100, 0);
             if self.device.use_sync_read:
                 # arbotix/servostik/wifi board sync_read
                 synclist = list()
