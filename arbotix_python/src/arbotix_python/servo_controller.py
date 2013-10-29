@@ -341,15 +341,19 @@ class ServoController(Controller):
             elif isinstance(joint, HobbyServo):
                 self.hobbyservos.append(joint)
 
-        self.w_delta = rospy.Duration(1.0/rospy.get_param("~write_rate", 10.0))
-        self.w_next = rospy.Time.now() + self.w_delta
+        self.w_skip = rospy.get_param("~write_skip", 0)
+        self.w_skip_count = 0
+        
+        self.rate = rospy.get_param("~rate", 100.0)
+        self.w_rate = self.rate / (self.w_skip+1.0)
 
-        self.r_delta = rospy.Duration(1.0/rospy.get_param("~read_rate", 10.0))
-        self.r_next = rospy.Time.now() + self.r_delta
+        self.r_skip = rospy.get_param("~read_skip", 0)
+        self.r_skip_count = 0
 
     def update(self):
+        self.r_skip_count +=1
         """ Read servo positions, update them. """
-        if rospy.Time.now() > self.r_next and not self.fake:
+        if self.r_skip_count > self.r_skip and not self.fake:
             if self.device.use_sync_read:
                 # arbotix/servostik/wifi board sync_read
                 synclist = list()
@@ -370,27 +374,28 @@ class ServoController(Controller):
                 # direct connection, or other hardware with no sync_read capability
                 for joint in self.dynamixels:
                     joint.setCurrentFeedback(self.device.getPosition(joint.id))
-            self.r_next = rospy.Time.now() + self.r_delta
+            self.r_skip_count = 0
 
-        if rospy.Time.now() > self.w_next:
+        self.w_skip_count +=1
+        if self.w_skip_count > self.w_skip and not self.fake:
             if self.device.use_sync_write and not self.fake:
                 syncpkt = list()
                 for joint in self.dynamixels:
-                    v = joint.interpolate(1.0/self.w_delta.to_sec())
+                    v = joint.interpolate(self.w_rate)
                     if v != None:   # if was dirty
                         syncpkt.append([joint.id,int(v)%256,int(v)>>8])                         
                 if len(syncpkt) > 0:      
                     self.device.syncWrite(P_GOAL_POSITION_L,syncpkt)
             else:
                 for joint in self.dynamixels:
-                    v = joint.interpolate(1.0/self.w_delta.to_sec())
+                    v = joint.interpolate(self.w_rate)
                     if v != None:   # if was dirty      
                         self.device.setPosition(joint.id, int(v))
             for joint in self.hobbyservos: 
-                v = joint.interpolate(1.0/self.w_delta.to_sec())
+                v = joint.interpolate(self.w_rate)
                 if v != None:   # if it was dirty   
                     self.device.setServo(joint.id, v)
-            self.w_next = rospy.Time.now() + self.w_delta
+            self.w_skip_count = 0
 
     def getDiagnostics(self):
         """ Update status of servos (voltages, temperatures). """

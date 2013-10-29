@@ -64,16 +64,17 @@ class JointStatePublisher:
 
     def __init__(self):
         # parameters: throttle rate and geometry
-        self.rate = rospy.get_param("~read_rate", 10.0)
-        self.t_delta = rospy.Duration(1.0/self.rate)
-        self.t_next = rospy.Time.now() + self.t_delta
+        self.skip = rospy.get_param("~read_skip", 0)
+        self.skip_count = 0
 
         # subscriber
         self.pub = rospy.Publisher('joint_states', JointState)
 
     def update(self, joints, controllers):
+        
+        self.skip_count += 1
         """ publish joint states. """
-        if rospy.Time.now() > self.t_next:   
+        if self.skip_count > self.skip:
             msg = JointState()
             msg.header.stamp = rospy.Time.now()
             msg.name = list()
@@ -88,5 +89,5 @@ class JointStatePublisher:
                 msg.position += controller.joint_positions
                 msg.velocity += controller.joint_velocities
             self.pub.publish(msg)
-            self.t_next = rospy.Time.now() + self.t_delta
+            self.skip_count = 0
 
