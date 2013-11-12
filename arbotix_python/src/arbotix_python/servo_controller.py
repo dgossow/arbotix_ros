@@ -40,7 +40,7 @@ from joints import *
 
 class DynamixelServo(Joint):
 
-    def __init__(self, device, name, ns="~joints"):
+    def __init__(self, device, name, ns="~joints", delay_topic="delay"):
         Joint.__init__(self, device, name)
         n = ns+"/"+name+"/"
         
@@ -97,7 +97,12 @@ class DynamixelServo(Joint):
             elif cmd < -self.max_speed/frame:
                 cmd = -self.max_speed/frame
             # compute angle, apply limits
-            ticks = self.angleToTicks(self.last_cmd + cmd)
+            new_angle = self.last_cmd + cmd
+            if new_angle > self.max_angle:
+                new_angle = self.max_angle
+            if new_angle < self.min_angle:
+                new_angle = self.min_angle
+            ticks = self.angleToTicks(new_angle)
             self.last_cmd = self.ticksToAngle(ticks)
             self.speed = cmd*frame
             # cap movement
@@ -221,6 +226,7 @@ class DynamixelServo(Joint):
                 self.dirty = True
                 self.active = True
                 self.desired = req.data
+
 
 class HobbyServo(Joint):
 
@@ -349,12 +355,27 @@ class ServoController(Controller):
 
         self.r_skip = rospy.get_param("~read_skip", 0)
         self.r_skip_count = 0
+        
+        self.delay_topic = rospy.get_param("~delay_topic", "~delay");
+        
+        self.last_update = rospy.Time.now();
+        
+        self.delay = 0.0;
+
+        rospy.Subscriber(self.delay_topic, Float64, self.delayCb);
+        
+    def delayCb(self, delay):
+        """ Float64 style command input. """
+        rospy.loginfo("Setting delay to %f ms.",delay.data);
+        self.delay = delay.data;
 
     def update(self):
         self.r_skip_count +=1
         """ Read servo positions, update them. """
         if self.r_skip_count > self.r_skip and not self.fake:
-            self.device.userWrite(100, 0);
+            #rospy.loginfo("Activating trigger");
+            self.device.userWrite(100, int(self.delay));
+            #rospy.loginfo("trigger done ");
             if self.device.use_sync_read:
                 # arbotix/servostik/wifi board sync_read
                 synclist = list()
@@ -376,6 +397,8 @@ class ServoController(Controller):
                 for joint in self.dynamixels:
                     joint.setCurrentFeedback(self.device.getPosition(joint.id))
             self.r_skip_count = 0
+            self.last_update = rospy.Time.now();
+            #rospy.loginfo("read joint positions done.");
 
         self.w_skip_count +=1
         if self.w_skip_count > self.w_skip and not self.fake:

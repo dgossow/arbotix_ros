@@ -30,6 +30,7 @@
 import rospy
 from diagnostic_msgs.msg import DiagnosticArray
 from sensor_msgs.msg import JointState
+from std_msgs.msg import Time
 
 class DiagnosticsPublisher:
     """ Class to handle publications of joint_states message. """
@@ -69,6 +70,7 @@ class JointStatePublisher:
 
         # subscriber
         self.pub = rospy.Publisher('joint_states', JointState)
+        self.time_pub = rospy.Publisher('joint_states_time', Time)
 
     def update(self, joints, controllers):
         
@@ -76,7 +78,6 @@ class JointStatePublisher:
         """ publish joint states. """
         if self.skip_count > self.skip:
             msg = JointState()
-            msg.header.stamp = rospy.Time.now()
             msg.name = list()
             msg.position = list()
             msg.velocity = list()
@@ -84,6 +85,7 @@ class JointStatePublisher:
                 msg.name.append(joint.name)
                 msg.position.append(joint.position)
                 msg.velocity.append(joint.velocity)
+                msg.header.stamp = joint.last
             for controller in controllers:
                 msg.name += controller.joint_names
                 msg.position += controller.joint_positions
@@ -91,3 +93,6 @@ class JointStatePublisher:
             self.pub.publish(msg)
             self.skip_count = 0
 
+            time_msg = Time()
+            time_msg.data = msg.header.stamp
+            self.time_pub.publish(time_msg)
